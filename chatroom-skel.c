@@ -22,6 +22,8 @@ PORTNO:		server port number
 #define MAXMSG 256
 #define PORTNO 12345
 
+pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER; 
+
 /**
 Data type to hold all information regarding a client connection
 index: 	position in the clients array
@@ -82,14 +84,17 @@ void * handle_client (void *arg)
 	//if EOF quit, otherwise broadcast it using broadcast_msg()
 		if (n==0)
 			break;
-		else
+		else{
+		    pthread_mutex_lock(&mutex); 
 		    broadcast_msg(out_buf,n,clients[*i]->index);
+		    pthread_mutex_unlock(&mutex); 
+		}
 	}
 
 	// Cleanup resources and free the client_t memory used by this client 
 	perror("Client disconnected");
 	close(connfd);
-	free(clients[*i]);
+	//free(clients[*i]);
 	return NULL;
 }
 
@@ -121,6 +126,14 @@ Returns -1 if MAXCLIENTS is exceeded
 int next_free(void)
 {
 	
+	int i;
+	for(i=0;i<MAXCLIENTS;i++){
+		if( clients[i] == NULL){
+			
+		    return i;
+			
+		}
+	}
 	return -1;
 }
 
@@ -129,8 +142,9 @@ Signal handler to clean up on SIGINT (Ctrl-C)
 **/
 void cleanup (int signal)
 {
-	puts("\nCaught interrupt. Exiting...\n");
+	puts("\n Caught interrupt. Exiting...\n");
 	quit = 1;
+	//close connected clients
 }
 
 int main( int argc, char *argv[] )
@@ -153,37 +167,39 @@ int main( int argc, char *argv[] )
 	while(!quit)
 	{
 
-		//allocate memory for clients array
-		clients[i]= malloc(sizeof(client_t ));
+		i=next_free();
+		if(i != -1){
+			//allocate memory for clients array
+			clients[i]= malloc(sizeof(client_t ));
 
-		//if max client break
-		if(i==MAXCLIENTS){
-			break;
-		}
-		//Accept an incoming connection 
-		clients[i]->sd= accept(listenfd, (struct sockaddr *) &cliaddr, &clilen);
+			//if max client break
+			if(i==MAXCLIENTS){
+				break;
+			}
+			//Accept an incoming connection 
+			clients[i]->sd= accept(listenfd, (struct sockaddr *) &cliaddr, &clilen);
 	
-		 // add client index - to identify the client
-		clients[i]->index =i;
+			 // add client index - to identify the client
+			clients[i]->index =i;
 
-		//create a thread for new client 
-		if ( pthread_create( &(clients[i]->tid), NULL, handle_client, &i) )
-		{
-			printf("error creating thread.");
-			abort();
-		}
+			//create a thread for new client 
+			if ( pthread_create( &(clients[i]->tid), NULL, handle_client, &i) )
+			{
+				printf("error creating thread.");
+				abort();
+			}
 		
 		
 	
-		//Allocate and set up new client_t struct in clients array 
-		printf("client %d\n",clients[i]->index);
-		//Create a DETACHED thread to handle the new client until the quit is set
-		pthread_detach((clients[i]->tid));
+			//Allocate and set up new client_t struct in clients array 
+			printf("client %d\n",clients[i]->index);
+			//Create a DETACHED thread to handle the new client until the quit is set
+			pthread_detach((clients[i]->tid));
 
 
 		
+		}
 		
-		i++;
 	}
 
 	puts("Shutting down client connections...\n");
