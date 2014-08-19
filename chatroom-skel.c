@@ -4,7 +4,7 @@ ADD THE E-NUMBERS OF YOUR GROUP'S MEMBERS HERE.
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
-#include <strings.h>
+#include <string.h>
 #include <pthread.h>
 #include <signal.h>
 #include <errno.h>
@@ -48,18 +48,20 @@ static volatile sig_atomic_t quit = 0;
 /**
 Send a received message to each client currently connected 
 **/
-void broadcast_msg(char *message,int size,int sender)
+void broadcast_msg(char *message,int sender)
 {
 	int i;
 	for(i=0;i<MAXCLIENTS;i++){
 		if( clients[i] != NULL  && clients[i]->index != sender){
 			
-			write(clients[i]->sd,message,size);
+			write(clients[i]->sd,message,strlen(message));
+				
 			
-		}
 		
+		}
 
 	}
+	
 }
 
 /**
@@ -70,32 +72,43 @@ void * handle_client (void *arg)
 	char out_buf[MAXMSG];
 	int n;
 	int connfd;
-	int * i= (int *)arg ;
-	connfd=clients[*i]->sd;
-	
+	int  i= (int)arg ;
+	pthread_mutex_lock(&mutex); 
+	connfd=clients[i]->sd;
+	pthread_mutex_unlock(&mutex); 
 	while (!quit)
 	{
+
+
+	//clear the message buffer
+	 memset(out_buf, 0, MAXMSG);
 	//read a message from this client 
 		
-		n = recv(connfd,out_buf,MAXMSG,0);// information of the client by recvfrom function
-		out_buf[n] = 0;
-		//printf("Received:%s\n",out_buf);
+	n = read(connfd,out_buf,MAXMSG);// information of the client by recvfrom function
+		
+		
 		
 	//if EOF quit, otherwise broadcast it using broadcast_msg()
-		if (n==0)
+		if (n<0){
 			break;
+			}
 		else{
+		    //printf("Received:%s\n",out_buf);
 		    pthread_mutex_lock(&mutex); 
-		    broadcast_msg(out_buf,n,clients[*i]->index);
+		    broadcast_msg(out_buf,clients[i]->index);
 		    pthread_mutex_unlock(&mutex); 
 		}
 	}
 
 	// Cleanup resources and free the client_t memory used by this client 
 	perror("Client disconnected");
+	fflush(stdout);
+	pthread_mutex_lock(&mutex); 
 	close(connfd);
-	//free(clients[*i]);
-	return NULL;
+	free(clients[i]);
+	pthread_mutex_unlock(&mutex);
+	pthread_exit(0);
+	
 }
 
 /**
@@ -128,8 +141,9 @@ int next_free(void)
 	
 	int i;
 	for(i=0;i<MAXCLIENTS;i++){
+
 		if( clients[i] == NULL){
-			
+		   // printf("next free client %d\n",i);	
 		    return i;
 			
 		}
@@ -145,6 +159,16 @@ void cleanup (int signal)
 	puts("\n Caught interrupt. Exiting...\n");
 	quit = 1;
 	//close connected clients
+	int i;
+	for(i=0;i<MAXCLIENTS;i++){
+
+		if( clients[i] != NULL){
+		   	
+		   close(clients[i]->sd);	
+		   
+			
+		}
+	}
 }
 
 int main( int argc, char *argv[] )
@@ -156,34 +180,39 @@ int main( int argc, char *argv[] )
 	signal(SIGINT, cleanup);
 	//Initialise any synchronisation variables like mutexes, attributes and memory
 
-
+	pthread_attr_t attr; // Thread attribute
+	
+	pthread_attr_init(&attr); // Creating thread attributes
+  	pthread_attr_setschedpolicy(&attr, SCHED_FIFO); // FIFO scheduling for threads 
+  	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED); // Don't want threads (particualrly main)
+                                                               // waiting on each other
 	
 
 	listenfd=setup_server();
 	listen(listenfd,5);
 	clilen=sizeof(cliaddr);
 	
-	int i=0;
+	int i;
 	while(!quit)
 	{
 
 		i=next_free();
-		if(i != -1){
+		if(i == -1){
+			printf("MAXCLIENTS is exceeded ....\n");
+			break;
+		}else{
 			//allocate memory for clients array
 			clients[i]= malloc(sizeof(client_t ));
 
-			//if max client break
-			if(i==MAXCLIENTS){
-				break;
-			}
+			
 			//Accept an incoming connection 
 			clients[i]->sd= accept(listenfd, (struct sockaddr *) &cliaddr, &clilen);
 	
 			 // add client index - to identify the client
 			clients[i]->index =i;
-
+			
 			//create a thread for new client 
-			if ( pthread_create( &(clients[i]->tid), NULL, handle_client, &i) )
+			if ( pthread_create(&(clients[i]->tid),&attr, handle_client, (void *)i) )
 			{
 				printf("error creating thread.");
 				abort();
@@ -193,8 +222,8 @@ int main( int argc, char *argv[] )
 	
 			//Allocate and set up new client_t struct in clients array 
 			printf("client %d\n",clients[i]->index);
-			//Create a DETACHED thread to handle the new client until the quit is set
-			pthread_detach((clients[i]->tid));
+			sleep(0); // Giving threads some CPU time
+			
 
 
 		
@@ -203,6 +232,7 @@ int main( int argc, char *argv[] )
 	}
 
 	puts("Shutting down client connections...\n");
+	
 	close(listenfd);
 	return 0;
 }
