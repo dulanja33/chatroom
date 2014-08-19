@@ -46,11 +46,11 @@ static volatile sig_atomic_t quit = 0;
 /**
 Send a received message to each client currently connected 
 **/
-void broadcast_msg(char *message,int size)
+void broadcast_msg(char *message,int size,int sender)
 {
 	int i;
 	for(i=0;i<MAXCLIENTS;i++){
-		if(clients[i]->index==i){
+		if( clients[i] != NULL  && clients[i]->index != sender){
 			
 			write(clients[i]->sd,message,size);
 			
@@ -67,13 +67,15 @@ void * handle_client (void *arg)
 {
 	char out_buf[MAXMSG];
 	int n;
-	int *connfd;
-	connfd=(int *)arg ;
+	int connfd;
+	int * i= (int *)arg ;
+	connfd=clients[*i]->sd;
+	
 	while (!quit)
 	{
 	//read a message from this client 
 		
-		n = recv(*connfd,out_buf,MAXMSG,0);// information of the client by recvfrom function
+		n = recv(connfd,out_buf,MAXMSG,0);// information of the client by recvfrom function
 		out_buf[n] = 0;
 		//printf("Received:%s\n",out_buf);
 		
@@ -81,12 +83,13 @@ void * handle_client (void *arg)
 		if (n==0)
 			break;
 		else
-		    broadcast_msg(out_buf,n);
+		    broadcast_msg(out_buf,n,clients[*i]->index);
 	}
 
 	// Cleanup resources and free the client_t memory used by this client 
 	perror("Client disconnected");
-	close(*connfd);
+	close(connfd);
+	free(clients[*i]);
 	return NULL;
 }
 
@@ -140,10 +143,7 @@ int main( int argc, char *argv[] )
 	//Initialise any synchronisation variables like mutexes, attributes and memory
 
 
-	//allocate memory for clients array
-	int c;
-	for(c=0;c<MAXCLIENTS;c++)
-		clients[c]= malloc(sizeof(client_t ));
+	
 
 	listenfd=setup_server();
 	listen(listenfd,5);
@@ -153,6 +153,9 @@ int main( int argc, char *argv[] )
 	while(!quit)
 	{
 
+		//allocate memory for clients array
+		clients[i]= malloc(sizeof(client_t ));
+
 		//if max client break
 		if(i==MAXCLIENTS){
 			break;
@@ -160,16 +163,17 @@ int main( int argc, char *argv[] )
 		//Accept an incoming connection 
 		clients[i]->sd= accept(listenfd, (struct sockaddr *) &cliaddr, &clilen);
 	
-		
+		 // add client index - to identify the client
+		clients[i]->index =i;
+
 		//create a thread for new client 
-		if ( pthread_create( &(clients[i]->tid), NULL, handle_client, &(clients[i]->sd)) )
+		if ( pthread_create( &(clients[i]->tid), NULL, handle_client, &i) )
 		{
 			printf("error creating thread.");
 			abort();
 		}
 		
-		 // add client index - to identify the client
-		clients[i]->index =i;
+		
 	
 		//Allocate and set up new client_t struct in clients array 
 		printf("client %d\n",clients[i]->index);
