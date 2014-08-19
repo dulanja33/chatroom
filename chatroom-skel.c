@@ -46,23 +46,19 @@ static volatile sig_atomic_t quit = 0;
 /**
 Send a received message to each client currently connected 
 **/
-void broadcast_msg(char *message)
+void broadcast_msg(char *message,int size)
 {
 	int i;
 	for(i=0;i<MAXCLIENTS;i++){
 		if(clients[i]->index==i){
-			printf("Received:%s\n",message);
-			write(clients[i]->sd,message,sizeof(message));
+			
+			write(clients[i]->sd,message,size);
+			
 		}
 		
 
 	}
 }
-
-
-
-
-
 
 /**
 Thread function that handles an individual client
@@ -85,7 +81,7 @@ void * handle_client (void *arg)
 		if (n==0)
 			break;
 		else
-		    broadcast_msg(out_buf);
+		    broadcast_msg(out_buf,n);
 	}
 
 	// Cleanup resources and free the client_t memory used by this client 
@@ -121,6 +117,7 @@ Returns -1 if MAXCLIENTS is exceeded
 **/
 int next_free(void)
 {
+	
 	return -1;
 }
 
@@ -129,7 +126,7 @@ Signal handler to clean up on SIGINT (Ctrl-C)
 **/
 void cleanup (int signal)
 {
-	puts("Caught interrupt. Exiting...\n");
+	puts("\nCaught interrupt. Exiting...\n");
 	quit = 1;
 }
 
@@ -139,7 +136,7 @@ int main( int argc, char *argv[] )
 	int listenfd;
 	socklen_t clilen;
 	//Install signal handler for SIGINT
-
+	signal(SIGINT, cleanup);
 	//Initialise any synchronisation variables like mutexes, attributes and memory
 
 

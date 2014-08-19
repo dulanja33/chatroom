@@ -46,53 +46,18 @@ static volatile sig_atomic_t quit = 0;
 /**
 Send a received message to each client currently connected 
 **/
-void broadcast_msg(char *message)
+void broadcast_msg(char *message,int size)
 {
 	int i;
 	for(i=0;i<MAXCLIENTS;i++){
 		if(clients[i]->index==i){
-			printf("Received:%s\n",message);
-			write(clients[i]->sd,message,sizeof(message));
+			
+			write(clients[i]->sd,message,size);
+			
 		}
 		
 
 	}
-}
-
-/**
-broadcast message block by block
-**/
-void blocksend(){
-	//write block by block
-	
-	int no_read;
-	int num_blks = file_size/ MAXSIZE; 
-   	int num_last_blk = file_size % MAXSIZE;
-	int i;
-	
-	for(i= 0; i < num_blks; i ++) { 
-		no_read = fread(out_buf,sizeof(char),MAXSIZE,in);
-		if (no_read == 0) {printf("server: file read error\n");exit(0);}
-		if (no_read != MAXSIZE)
-			{printf("server: file read error : no_read is less\n");exit(0);}
-		if((writen(connfd,out_buf,MAXSIZE)) < 0)
-		 	{printf("server: error sending block:\n");exit(0);}
-		
-      		printf(" %d...",i);
-        }
-	//read remaining bytes
-	 if (num_last_blk > 0) { 
-     		 printf("%d\n",num_blks);
-      		no_read = fread(out_buf,sizeof(char),num_last_blk,in); 
-      		if (no_read == 0) {printf("server: file read error\n");exit(0);}
-      		if (no_read != num_last_blk) 
-            		{printf("server: file read error : no_read is less 2\n");exit(0);}
-      		if((writen(connfd,out_buf,num_last_blk)) < 0)
-                 	{printf("server: file transfer error \n");exit(0);}
-      		
-        }
-
-
 }
 
 /**
@@ -116,7 +81,7 @@ void * handle_client (void *arg)
 		if (n==0)
 			break;
 		else
-		    broadcast_msg(out_buf);
+		    broadcast_msg(out_buf,n);
 	}
 
 	// Cleanup resources and free the client_t memory used by this client 
@@ -152,6 +117,7 @@ Returns -1 if MAXCLIENTS is exceeded
 **/
 int next_free(void)
 {
+	
 	return -1;
 }
 
@@ -170,7 +136,7 @@ int main( int argc, char *argv[] )
 	int listenfd;
 	socklen_t clilen;
 	//Install signal handler for SIGINT
-
+	signal(SIGINT, cleanup);
 	//Initialise any synchronisation variables like mutexes, attributes and memory
 
 
