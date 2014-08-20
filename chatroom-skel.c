@@ -54,7 +54,7 @@ void broadcast_msg(char *message,int sender)
 	for(i=0;i<MAXCLIENTS;i++){
 		if( clients[i] != NULL  && clients[i]->index != sender){
 			
-			write(clients[i]->sd,message,strlen(message));
+			send(clients[i]->sd,message,strlen(message),0);
 				
 			
 		
@@ -72,24 +72,25 @@ void * handle_client (void *arg)
 	char out_buf[MAXMSG];
 	int n;
 	int connfd;
-	int  i= (int)arg ;
+	int  i= *(int *)arg ;
+	
 	pthread_mutex_lock(&mutex); 
 	connfd=clients[i]->sd;
-	pthread_mutex_unlock(&mutex); 
+	pthread_mutex_unlock(&mutex);
 	while (!quit)
 	{
 
-
+	
 	//clear the message buffer
 	 memset(out_buf, 0, MAXMSG);
 	//read a message from this client 
 		
-	n = read(connfd,out_buf,MAXMSG);// information of the client by recvfrom function
-		
+	n = recv(connfd,out_buf,MAXMSG,0);// information of the client by recvfrom function
+	out_buf[n]=0;	
 		
 		
 	//if EOF quit, otherwise broadcast it using broadcast_msg()
-		if (n<0){
+		if (n<=0){
 			break;
 			}
 		else{
@@ -103,10 +104,10 @@ void * handle_client (void *arg)
 	// Cleanup resources and free the client_t memory used by this client 
 	perror("Client disconnected");
 	fflush(stdout);
-	pthread_mutex_lock(&mutex); 
+
 	close(connfd);
 	free(clients[i]);
-	pthread_mutex_unlock(&mutex);
+	
 	pthread_exit(0);
 	
 }
@@ -206,13 +207,17 @@ int main( int argc, char *argv[] )
 
 			
 			//Accept an incoming connection 
-			clients[i]->sd= accept(listenfd, (struct sockaddr *) &cliaddr, &clilen);
+			if((clients[i]->sd= accept(listenfd, (struct sockaddr *) &cliaddr, &clilen)) > 1){
+			}else{
+				puts("No proper client connection established...\n");
+				
+			}
 	
 			 // add client index - to identify the client
 			clients[i]->index =i;
 			
 			//create a thread for new client 
-			if ( pthread_create(&(clients[i]->tid),&attr, handle_client, (void *)i) )
+			if ( pthread_create(&(clients[i]->tid),&attr, handle_client, &(clients[i]->index) ) )
 			{
 				printf("error creating thread.");
 				abort();
@@ -224,7 +229,12 @@ int main( int argc, char *argv[] )
 			printf("client %d\n",clients[i]->index);
 			sleep(0); // Giving threads some CPU time
 			
-
+			int j;
+			for(j=0;j<MAXCLIENTS ;j++){
+				
+					printf("%d\n",clients[i]->sd);
+				
+			}
 
 		
 		}
