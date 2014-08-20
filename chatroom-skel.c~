@@ -200,14 +200,14 @@ void * handle_client (void *arg)
 
 	fflush(stdout);
 
-
+	pthread_mutex_lock(&mutex); 
 	close(connfd);
 	client_t *temp=clients[i];
 	clients[i]=NULL;
 	
 	free(temp);
 
-	
+	 pthread_mutex_unlock(&mutex); 
 
 	pthread_exit(0);
 
@@ -303,7 +303,26 @@ void cleanup (int signal)
 	puts("\n Caught interrupt. Exiting...\n");
 
 	quit = 1;
+	
+	int j;
+	
 
+	for(j=0;j<MAXCLIENTS ;j++){
+
+				
+		if(clients[j]!=NULL){
+			client_t *temp=clients[j];
+			close(clients[j]->sd);
+	
+			clients[j]=NULL;
+	
+			free(temp);
+		}
+					
+
+				
+
+	}
 	
 
 }
@@ -447,25 +466,6 @@ int main( int argc, char *argv[] )
 
 	fflush(stdout);
 
-	int j;
-	
-
-	for(j=0;j<MAXCLIENTS ;j++){
-
-				
-		if(clients[j]!=NULL){
-			client_t *temp=clients[i];
-			close(clients[i]->sd);
-	
-			clients[i]=NULL;
-	
-			free(temp);
-		}
-					
-
-				
-
-	}
 			
 	
 
