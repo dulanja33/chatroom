@@ -70,13 +70,14 @@ Thread function that handles an individual client
 void * handle_client (void *arg)
 {
 	char out_buf[MAXMSG];
-	int n;
+	int n,i;
+	int index;
 	int connfd;
-	int  i= *(int *)arg ;
+	connfd= *(int *)arg ;
+	for(i=0;i<MAXCLIENTS;i++){
+		if(clients[i]->sd==connfd && clients[i]->tid==)
+	}
 	
-	pthread_mutex_lock(&mutex); 
-	connfd=clients[i]->sd;
-	pthread_mutex_unlock(&mutex);
 	while (!quit)
 	{
 
@@ -85,8 +86,8 @@ void * handle_client (void *arg)
 	 memset(out_buf, 0, MAXMSG);
 	//read a message from this client 
 		
-	n = recv(connfd,out_buf,MAXMSG,0);// information of the client by recvfrom function
-	out_buf[n]=0;	
+	 n = recv(connfd,out_buf,MAXMSG,0);// information of the client by recvfrom function
+	 out_buf[n]=0;	
 		
 		
 	//if EOF quit, otherwise broadcast it using broadcast_msg()
@@ -105,6 +106,8 @@ void * handle_client (void *arg)
 	perror("Client disconnected");
 	fflush(stdout);
 
+	for
+	client_t temp=client[i];
 	close(connfd);
 	free(clients[i]);
 	
@@ -187,7 +190,9 @@ int main( int argc, char *argv[] )
   	pthread_attr_setschedpolicy(&attr, SCHED_FIFO); // FIFO scheduling for threads 
   	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED); // Don't want threads (particualrly main)
                                                                // waiting on each other
-	
+	client_t *client;
+	int client_sd;
+	pthread_t client_tid;
 
 	listenfd=setup_server();
 	listen(listenfd,5);
@@ -196,48 +201,58 @@ int main( int argc, char *argv[] )
 	int i;
 	while(!quit)
 	{
-
-		i=next_free();
-		if(i == -1){
-			printf("MAXCLIENTS is exceeded ....\n");
-			break;
-		}else{
+		
+		
 			//allocate memory for clients array
-			clients[i]= malloc(sizeof(client_t ));
+			client= malloc(sizeof(client_t ));
 
 			
 			//Accept an incoming connection 
-			if((clients[i]->sd= accept(listenfd, (struct sockaddr *) &cliaddr, &clilen)) > 1){
+			if((client_sd= accept(listenfd, (struct sockaddr *) &cliaddr, &clilen)) > 1){
 			}else{
 				puts("No proper client connection established...\n");
 				
 			}
 	
-			 // add client index - to identify the client
-			clients[i]->index =i;
+			
 			
 			//create a thread for new client 
-			if ( pthread_create(&(clients[i]->tid),&attr, handle_client, &(clients[i]->index) ) )
+			if ( pthread_create(&client_tid,&attr, handle_client, &client_sd ) )
 			{
 				printf("error creating thread.");
 				abort();
 			}
 		
 		
-	
+		
+		i=next_free();
+		if(i == -1){
+			printf("MAXCLIENTS is exceeded ....\n");
+			break;
+		}else{
+			
+		
+			clients[i]=clients;
+			clients[i]->index=i;
+			clients[i]->sd=client_sd;
+			clients[i]->tid=client_tid;
 			//Allocate and set up new client_t struct in clients array 
 			printf("client %d\n",clients[i]->index);
-			sleep(0); // Giving threads some CPU time
 			
-			int j;
-			for(j=0;j<MAXCLIENTS ;j++){
-				
-					printf("%d\n",clients[i]->sd);
-				
-			}
+			
+			
+			
 
 		
 		}
+		free(client);
+		sleep(0); // Giving threads some CPU time
+		int j;
+			for(j=0;j<MAXCLIENTS ;j++){
+				
+					printf("%d\n",clients[j]->sd);
+				
+			}
 		
 	}
 
