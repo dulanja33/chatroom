@@ -103,9 +103,9 @@ void * handle_client (void *arg)
 	client_t *temp;
 	
 
-	
+	pthread_mutex_lock(&mutex); 
 	connfd=clients[i]->sd;
-	
+	pthread_mutex_unlock(&mutex);
 
 	while (!quit)
 	{
@@ -148,13 +148,14 @@ void * handle_client (void *arg)
 
 	fflush(stdout);
 
+	pthread_mutex_lock(&mutex); 
 	close(connfd);
 	temp=clients[i];
 	clients[i]=NULL;
 	
 	free(temp);
 
-	
+	pthread_mutex_unlock(&mutex); 
 
 	pthread_exit(0);
 
